@@ -4,13 +4,24 @@
 #include <sstream>
 #include <algorithm>
 #include <iomanip>
+#include <ctime>
 
-TaskManager::TaskManager(const std::string& username)
+using namespace std;
+
+// 辅助函数：将时间戳转为可读字符串
+string timeToStr(time_t t) {
+    tm* local = localtime(&t);
+    char buf[64];
+    strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M", local);
+    return string(buf);
+}
+
+TaskManager::TaskManager(const string& username)
     : m_username(username), m_nextId(1) {
     loadFromFile();
 }
 
-std::string TaskManager::getFilename() const {
+string TaskManager::getFilename() const {
     return m_username + "_tasks.txt";
 }
 
@@ -18,7 +29,7 @@ int TaskManager::generateId() {
     return m_nextId++;
 }
 
-bool TaskManager::isUnique(const std::string& name, std::time_t startTime) const {
+bool TaskManager::isUnique(const string& name, time_t startTime) const {
     for (const auto& task : m_tasks) {
         if (task.name == name && task.startTime == startTime) {
             return false;
@@ -27,14 +38,13 @@ bool TaskManager::isUnique(const std::string& name, std::time_t startTime) const
     return true;
 }
 
-bool TaskManager::addTask(const std::string& name,
-                          std::time_t startTime,
-                          const std::string& priority,
-                          const std::string& category,
-                          std::time_t remindTime) {
-    // 检查名称 + 时间是否唯一
+bool TaskManager::addTask(const string& name,
+                          time_t startTime,
+                          const string& priority,
+                          const string& category,
+                          time_t remindTime) {
     if (!isUnique(name, startTime)) {
-        std::cerr << "[ERROR] Task name + start time must be unique!\n";
+        cerr << "[ERROR] Task name + start time must be unique!\n";
         return false;
     }
 
@@ -52,10 +62,10 @@ bool TaskManager::addTask(const std::string& name,
 }
 
 bool TaskManager::deleteTask(int id) {
-    auto it = std::find_if(m_tasks.begin(), m_tasks.end(),
-                           [id](const Task& t) { return t.id == id; });
+    auto it = find_if(m_tasks.begin(), m_tasks.end(),
+                      [id](const Task& t) { return t.id == id; });
     if (it == m_tasks.end()) {
-        std::cerr << "[ERROR] Task with ID " << id << " not found!\n";
+        cerr << "[ERROR] Task with ID " << id << " not found!\n";
         return false;
     }
     m_tasks.erase(it);
@@ -63,90 +73,98 @@ bool TaskManager::deleteTask(int id) {
     return true;
 }
 
-void TaskManager::showTasksForDay(std::time_t date) const {
-    // 把 date 转换成当天的开始时间（0点）
-    std::tm* local = std::localtime(&date);
+void TaskManager::showTasksForDay(time_t date) const {
+    tm* local = localtime(&date);
     local->tm_hour = 0;
     local->tm_min = 0;
     local->tm_sec = 0;
-    std::time_t dayStart = std::mktime(local);
-    std::time_t dayEnd = dayStart + 24 * 60 * 60;
+    time_t dayStart = mktime(local);
+    time_t dayEnd = dayStart + 24 * 60 * 60;
 
-    // 筛选当天的任务
-    std::vector<Task> dayTasks;
+    vector<Task> dayTasks;
     for (const auto& task : m_tasks) {
         if (task.startTime >= dayStart && task.startTime < dayEnd) {
             dayTasks.push_back(task);
         }
     }
 
-    // 按开始时间排序
-    std::sort(dayTasks.begin(), dayTasks.end(),
-              [](const Task& a, const Task& b) {
-                  return a.startTime < b.startTime;
-              });
+    sort(dayTasks.begin(), dayTasks.end(),
+         [](const Task& a, const Task& b) {
+             return a.startTime < b.startTime;
+         });
 
-    // 显示
     if (dayTasks.empty()) {
-        std::cout << "No tasks for this day.\n";
+        cout << "No tasks for this day.\n";
         return;
     }
 
-    std::cout << std::left
-              << std::setw(6) << "ID"
-              << std::setw(20) << "Name"
-              << std::setw(20) << "Start Time"
-              << std::setw(10) << "Priority"
-              << std::setw(10) << "Category"
-              << std::setw(20) << "Remind Time"
-              << "\n";
-    std::cout << std::string(86, '-') << "\n";
+    cout << left
+         << setw(6) << "ID"
+         << setw(20) << "Name"
+         << setw(20) << "Start Time"
+         << setw(10) << "Priority"
+         << setw(15) << "Category"
+         << setw(20) << "Remind Time"
+         << "\n";
+    cout << string(91, '-') << "\n";
 
     for (const auto& task : dayTasks) {
-        std::cout << std::left
-                  << std::setw(6) << task.id
-                  << std::setw(20) << task.name
-                  << std::setw(20) << std::ctime(&task.startTime)
-                  << std::setw(10) << Task::priorityToString(task.priority)
-                  << std::setw(10) << Task::categoryToString(task.category)
-                  << std::setw(20) << std::ctime(&task.remindTime)
-                  << "\n";
+        cout << left
+             << setw(6) << task.id
+             << setw(20) << task.name
+             << setw(20) << timeToStr(task.startTime)
+             << setw(10) << Task::priorityToString(task.priority)
+             << setw(15) << Task::categoryToString(task.category)
+             << setw(20) << timeToStr(task.remindTime)
+             << "\n";
+    }
+}
+
+void TaskManager::showAllTasks() const {
+    if (m_tasks.empty()) {
+        cout << "No tasks at all.\n";
+        return;
+    }
+
+    cout << "=== All Tasks ===\n";
+    for (const auto& task : m_tasks) {
+        cout << "ID: " << task.id
+             << ", Name: " << task.name
+             << ", Start: " << timeToStr(task.startTime) << "\n";
     }
 }
 
 bool TaskManager::loadFromFile() {
-    std::string filename = getFilename();
-    std::ifstream fin(filename);
+    string filename = getFilename();
+    ifstream fin(filename);
     if (!fin.is_open()) {
-        // 文件不存在，不是错误
         return true;
     }
 
     m_tasks.clear();
-    std::string line;
-    while (std::getline(fin, line)) {
+    string line;
+    while (getline(fin, line)) {
         if (line.empty()) continue;
 
-        std::stringstream ss(line);
+        stringstream ss(line);
         Task task;
-        std::string priorityStr, categoryStr;
-        std::string startTimeStr, remindTimeStr;
+        string priorityStr, categoryStr;
+        string startTimeStr, remindTimeStr;
 
-        std::getline(ss, startTimeStr, '|');
-        std::getline(ss, priorityStr, '|');
-        std::getline(ss, categoryStr, '|');
-        std::getline(ss, remindTimeStr, '|');
-        std::getline(ss, line); // 剩余部分是任务名称
+        getline(ss, startTimeStr, '|');
+        getline(ss, priorityStr, '|');
+        getline(ss, categoryStr, '|');
+        getline(ss, remindTimeStr, '|');
+        getline(ss, line);
 
-        task.startTime = std::stoll(startTimeStr);
+        task.startTime = stoll(startTimeStr);
         task.priority = Task::stringToPriority(priorityStr);
         task.category = Task::stringToCategory(categoryStr);
-        task.remindTime = std::stoll(remindTimeStr);
+        task.remindTime = stoll(remindTimeStr);
         task.name = line;
 
-        // ID 单独处理
-        std::getline(fin, line);
-        task.id = std::stoi(line);
+        getline(fin, line);
+        task.id = stoi(line);
 
         m_tasks.push_back(task);
         if (task.id >= m_nextId) {
@@ -157,10 +175,10 @@ bool TaskManager::loadFromFile() {
 }
 
 bool TaskManager::saveToFile() const {
-    std::string filename = getFilename();
-    std::ofstream fout(filename);
+    string filename = getFilename();
+    ofstream fout(filename);
     if (!fout.is_open()) {
-        std::cerr << "[ERROR] Cannot open " << filename << " for writing!\n";
+        cerr << "[ERROR] Cannot open " << filename << " for writing!\n";
         return false;
     }
 

@@ -4,12 +4,13 @@
 #include "Task.h"
 #include <vector>
 #include <string>
+#include <ctime> 
 
 class TaskManager {
 public:
     // 构造函数：传入当前登录的用户名
     TaskManager(const std::string& username);
-
+    void showAllTasks() const;
     // 添加任务，成功返回 true
     bool addTask(const std::string& name, 
                  std::time_t startTime, 
