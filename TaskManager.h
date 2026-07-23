@@ -35,6 +35,9 @@ private:
 
     // 内部不加锁版本，供已经持有锁的公开接口调用，避免重复加锁死锁
     bool saveToFileUnlocked() const;
+
+    // 统一的表格打印，供showAllTasks/showTasksForDay共用。调用者必须已持有锁。
+    void printTaskTable(std::vector<Task> tasks, const std::string& title) const;
 };
 
 #endif

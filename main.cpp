@@ -9,12 +9,22 @@
 #include <thread>
 #include <atomic>
 #include <chrono>
+#include <iomanip>
+
+#ifdef _WIN32
 #include <windows.h>
+#endif
 
 using namespace std;
 
-// 控制后台提醒线程的运行状态，主线程退出前会置为false并join
 atomic<bool> g_running(true);
+
+static void setupConsole() {
+#ifdef _WIN32
+    SetConsoleOutputCP(CP_UTF8);
+    SetConsoleCP(CP_UTF8);
+#endif
+}
 
 static void normalizePunctuation(string& s) {
     struct Pair { const char* full; char half; };
@@ -37,19 +47,19 @@ time_t parseTime(const string& rawTimeStr) {
     normalizePunctuation(timeStr);
 
     while (!timeStr.empty() && isspace((unsigned char)timeStr.front())) timeStr.erase(0, 1);
-    while (!timeStr.empty() && isspace((unsigned char)timeStr.back()))  timeStr.pop_back();
+    while (!timeStr.empty() && isspace((unsigned char)timeStr.back())) timeStr.pop_back();
 
     int year, month, day, hour, min;
     int matched = sscanf(timeStr.c_str(), "%d-%d-%d_%d:%d", &year, &month, &day, &hour, &min);
 
     if (matched != 5) {
         cerr << "[ERROR] Invalid time format: \"" << timeStr << "\"\n";
-        cerr << "       Use: YYYY-MM-DD_HH:MM (e.g. 2026-07-27_10:00)\n";
+        cerr << "        Expected format: YYYY-MM-DD_HH:MM  (e.g. 2026-07-27_10:00)\n";
         return -1;
     }
 
     if (month < 1 || month > 12 || day < 1 || day > 31 || hour < 0 || hour > 23 || min < 0 || min > 59) {
-        cerr << "[ERROR] Time values out of range: " << timeStr << "\n";
+        cerr << "[ERROR] Time value out of range: \"" << timeStr << "\"\n";
         return -1;
     }
 
@@ -63,7 +73,7 @@ time_t parseTime(const string& rawTimeStr) {
     tm.tm_isdst = -1;
     time_t result = mktime(&tm);
     if (result == -1) {
-        cerr << "[ERROR] mktime failed for: " << timeStr << "\n";
+        cerr << "[ERROR] Failed to interpret time: \"" << timeStr << "\"\n";
     }
     return result;
 }
@@ -72,69 +82,76 @@ string getCurrentTimeStr() {
     time_t now = time(nullptr);
     tm* local = localtime(&now);
     char buf[64];
-    strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M", local);
+    strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S", local);
     return string(buf);
 }
 
-// ============ 帮助信息 ============
+static void printBanner(const string& subtitle) {
+    cout << "+----------------------------------------------------------+\n";
+    cout << "|                                                          |\n";
+    cout << "|                       MYSCHEDULE                         |\n";
+    cout << "|                    " << left << setw(38) << subtitle << "|\n";
+    cout << "|                                                          |\n";
+    cout << "+----------------------------------------------------------+\n";
+}
 
 void printUsage(const char* progName) {
-    cout << "========================================\n";
-    cout << "        MySchedule - Task Manager\n";
-    cout << "========================================\n";
-    cout << "\nUSAGE:\n";
+    printBanner("Command-Line Task Manager");
+    cout << "\nUSAGE\n";
     cout << "  " << progName << " run\n";
-    cout << "      Start interactive shell mode. Prompts for login/register,\n";
-    cout << "      then loops waiting for commands. Runs a background thread\n";
-    cout << "      that checks reminders every second.\n\n";
+    cout << "        Start interactive shell mode.\n\n";
 
     cout << "  " << progName << " <username> <password> register\n";
-    cout << "      Register a new account, then exit.\n\n";
+    cout << "        Register a new account, then exit.\n\n";
 
     cout << "  " << progName << " <username> <password> addtask <name> <time> [priority] [category]\n";
-    cout << "      Add a task, save to file, then exit.\n";
-    cout << "      <time>     format: YYYY-MM-DD_HH:MM\n";
-    cout << "      [priority] optional, one of High/Medium/Low, default: Medium\n";
-    cout << "      [category] optional, one of Study/Entertainment/Life, default: Life\n\n";
+    cout << "        Add one task, save it to file, then exit.\n";
+    cout << "          <name>     task name (use quotes if it has spaces)\n";
+    cout << "          <time>     format YYYY-MM-DD_HH:MM\n";
+    cout << "          [priority] High | Medium | Low         (default: Medium)\n";
+    cout << "          [category] Study | Entertainment | Life (default: Life)\n\n";
 
     cout << "  " << progName << " <username> <password> showtask <date>\n";
-    cout << "      Show all tasks on a given date, sorted by start time.\n";
-    cout << "      <date> format: YYYY-MM-DD\n\n";
+    cout << "        Show all tasks on a given date, sorted by start time.\n";
+    cout << "          <date>     format YYYY-MM-DD\n\n";
 
     cout << "  " << progName << " <username> <password> showall\n";
-    cout << "      Show all tasks for this user.\n\n";
+    cout << "        Show every task belonging to this user.\n\n";
 
     cout << "  " << progName << " <username> <password> deltask <id>\n";
-    cout << "      Delete a task by its id.\n\n";
+    cout << "        Delete one task by its numeric ID.\n\n";
 
     cout << "  " << progName << " --help | -h\n";
-    cout << "      Show this help message.\n\n";
+    cout << "        Show this help message.\n\n";
 
-    cout << "EXAMPLES:\n";
+    cout << "EXAMPLES\n";
     cout << "  " << progName << " run\n";
-    cout << "  " << progName << " user1 password123 register\n";
-    cout << "  " << progName << " user1 password123 addtask Homework 2026-07-27_10:00 High Study\n";
-    cout << "  " << progName << " user1 password123 addtask \"Do Homework\" 2026-07-27_10:00\n";
-    cout << "  " << progName << " user1 password123 showtask 2026-07-27\n";
-    cout << "  " << progName << " user1 password123 showall\n";
-    cout << "  " << progName << " user1 password123 deltask 1\n";
+    cout << "  " << progName << " alice secret123 register\n";
+    cout << "  " << progName << " alice secret123 addtask Homework 2026-07-27_10:00 High Study\n";
+    cout << "  " << progName << " alice secret123 addtask \"Movie night\" 2026-07-27_20:00 Low Entertainment\n";
+    cout << "  " << progName << " alice secret123 showtask 2026-07-27\n";
+    cout << "  " << progName << " alice secret123 showall\n";
+    cout << "  " << progName << " alice secret123 deltask 3\n";
 }
 
-void showInteractiveHelp() {
-    cout << "\nCommands:\n";
-    cout << "  addtask <name> <time> [priority] [category]\n";
-    cout << "  addtask \"<name with spaces>\" <time> [priority] [category]\n";
-    cout << "  showtask <date>     e.g. showtask 2026-07-27\n";
-    cout << "  showall\n";
-    cout << "  deltask <id>        e.g. deltask 1\n";
-    cout << "  quit\n";
-    cout << "\nTime format: YYYY-MM-DD_HH:MM (use underscore, no spaces)\n";
-    cout << "[priority] optional, default: Medium. [category] optional, default: Life.\n";
-    cout << "Example: addtask Homework 2026-07-27_10:00 High Study\n";
-    cout << "Example: addtask \"Do Homework\" 2026-07-27_10:00\n";
+static void showInteractiveHelp() {
+    cout << "\nCOMMANDS\n";
+    cout << "  " << left << setw(46) << "addtask <name> <time> [pri] [cat]" << "add a task\n";
+    cout << "  " << left << setw(46) << "addtask \"<name with spaces>\" <time> ..." << "(same, quoted name)\n";
+    cout << "  " << left << setw(46) << "showtask <YYYY-MM-DD>" << "list tasks on a date\n";
+    cout << "  " << left << setw(46) << "showall" << "list all your tasks\n";
+    cout << "  " << left << setw(46) << "deltask <id>" << "delete a task by ID\n";
+    cout << "  " << left << setw(46) << "help" << "show this help again\n";
+    cout << "  " << left << setw(46) << "quit / exit" << "leave the program\n";
+    cout << "\nNOTES\n";
+    cout << "  - Time format:  YYYY-MM-DD_HH:MM   (underscore between date and time)\n";
+    cout << "  - [priority]  High | Medium | Low          default: Medium\n";
+    cout << "  - [category]  Study | Entertainment | Life default: Life\n";
+    cout << "  - A task's name + start time must be unique.\n";
+    cout << "\nEXAMPLES\n";
+    cout << "  addtask Homework 2026-07-27_10:00 High Study\n";
+    cout << "  addtask \"Movie night\" 2026-07-27_20:00\n";
 }
-
-// ============ 后台提醒线程 ============
 
 void reminderThreadFunc(TaskManager* manager) {
     while (g_running) {
@@ -143,45 +160,32 @@ void reminderThreadFunc(TaskManager* manager) {
     }
 }
 
-// ============ addtask 公共逻辑（交互模式和命令行模式共用） ============
-
 bool doAddTask(TaskManager& manager, const string& name, const string& timeStr,
                const string& priority, const string& category) {
     if (name.empty() || timeStr.empty()) {
-        cout << "[ERROR] Task name and time are required.\n";
+        cerr << "[ERROR] Task name and start time are required.\n";
         return false;
     }
     time_t startTime = parseTime(timeStr);
     if (startTime == -1) return false;
-    time_t remindTime = startTime - 300; // 提前5分钟提醒
+    time_t remindTime = startTime - 300;
 
     string finalPriority = priority.empty() ? "Medium" : priority;
     string finalCategory = category.empty() ? "Life" : category;
 
-    if (manager.addTask(name, startTime, finalPriority, finalCategory, remindTime)) {
-        cout << "Task added successfully!\n";
-        return true;
-    } else {
-        cout << "Failed to add task.\n";
-        return false;
-    }
+    return manager.addTask(name, startTime, finalPriority, finalCategory, remindTime);
 }
 
-// ============ 交互模式（run） ============
-
 int runInteractiveMode() {
-    SetConsoleOutputCP(CP_UTF8);
-    SetConsoleCP(CP_UTF8);
+    setupConsole();
+    printBanner("Interactive Mode");
 
     string username, password;
     int choice;
 
-    cout << "========================================\n";
-    cout << "      Welcome to Schedule Manager\n";
-    cout << "========================================\n";
-    cout << "1. Register\n";
-    cout << "2. Login\n";
-    cout << "Choose (1 or 2): ";
+    cout << "\n  1) Register\n";
+    cout << "  2) Login\n";
+    cout << "\nChoose (1 or 2): ";
     cin >> choice;
 
     if (choice == 1) {
@@ -190,9 +194,9 @@ int runInteractiveMode() {
         cout << "Password: ";
         cin >> password;
         if (registerUser(username, password)) {
-            cout << "Registration successful!\n";
+            cout << "\n[OK] Registration successful. You are now logged in as \"" << username << "\".\n";
         } else {
-            cout << "Registration failed.\n";
+            cout << "\n[FAILED] Registration failed.\n";
             return 1;
         }
     } else if (choice == 2) {
@@ -201,17 +205,17 @@ int runInteractiveMode() {
         cout << "Password: ";
         cin >> password;
         if (!loginUser(username, password)) {
-            cout << "Login failed.\n";
+            cout << "\n[FAILED] Login failed.\n";
             return 1;
         }
-        cout << "Login successful! Welcome " << username << "!\n";
+        cout << "\n[OK] Login successful. Welcome back, " << username << "!\n";
     } else {
-        cout << "Invalid choice.\n";
+        cout << "\n[ERROR] Invalid choice.\n";
         return 1;
     }
 
     TaskManager manager(username);
-    cout << "Current time: " << getCurrentTimeStr() << "\n";
+    cout << "Server time: " << getCurrentTimeStr() << "\n";
     showInteractiveHelp();
 
     thread reminderThread(reminderThreadFunc, &manager);
@@ -220,9 +224,10 @@ int runInteractiveMode() {
     cin.ignore();
 
     while (true) {
-        cout << "\n> ";
+        cout << "\n[" << username << "] > ";
         getline(cin, line);
         if (line == "quit" || line == "exit") break;
+        if (line.empty()) continue;
 
         stringstream ss(line);
         string cmd;
@@ -239,12 +244,16 @@ int runInteractiveMode() {
                 ss >> name;
             }
 
-            ss >> timeStr >> priority >> category; // priority/category可能读不到,是空字符串,doAddTask会用默认值
+            ss >> timeStr >> priority >> category;
 
             doAddTask(manager, name, timeStr, priority, category);
         } else if (cmd == "showtask") {
             string dateStr;
             ss >> dateStr;
+            if (dateStr.empty()) {
+                cerr << "[ERROR] Usage: showtask <YYYY-MM-DD>\n";
+                continue;
+            }
             time_t date = parseTime(dateStr + "_00:00");
             if (date != -1) {
                 manager.showTasksForDay(date);
@@ -253,29 +262,27 @@ int runInteractiveMode() {
             manager.showAllTasks();
         } else if (cmd == "deltask") {
             int id;
-            ss >> id;
-            if (manager.deleteTask(id)) {
-                cout << "Task deleted.\n";
+            if (!(ss >> id)) {
+                cerr << "[ERROR] Usage: deltask <id>\n";
+                continue;
             }
+            manager.deleteTask(id);
         } else if (cmd == "help") {
             showInteractiveHelp();
         } else {
-            cout << "Unknown command. Type 'help'.\n";
+            cout << "[ERROR] Unknown command \"" << cmd << "\". Type 'help' for a list of commands.\n";
         }
     }
 
     g_running = false;
     reminderThread.join();
 
+    cout << "\nGoodbye, " << username << "!\n";
     return 0;
 }
 
-// ============ 命令行单命令模式 ============
-// myschedule <username> <password> <command> [args...]
-
 int runSingleCommand(int argc, char* argv[]) {
-    SetConsoleOutputCP(CP_UTF8);
-    SetConsoleCP(CP_UTF8);
+    setupConsole();
 
     if (argc < 4) {
         cerr << "[ERROR] Missing arguments.\n\n";
@@ -289,30 +296,42 @@ int runSingleCommand(int argc, char* argv[]) {
 
     if (command == "register") {
         if (registerUser(username, password)) {
-            cout << "Registration successful!\n";
+            cout << "[OK] Registration successful for \"" << username << "\".\n";
             return 0;
         } else {
-            cout << "Registration failed.\n";
+            cerr << "[FAILED] Registration failed.\n";
             return 1;
         }
     }
 
-    // 除register外，其它命令都需要先登录
     if (!loginUser(username, password)) {
-        cout << "Login failed.\n";
+        cerr << "[FAILED] Login failed for \"" << username << "\".\n";
         return 1;
     }
 
     TaskManager manager(username);
 
     if (command == "addtask") {
-        // myschedule user pass addtask <name> <time> [priority] [category]
         if (argc < 6) {
-            cerr << "[ERROR] Usage: " << argv[0]
-                 << " <username> <password> addtask <name> <time> [priority] [category]\n";
+            cerr << "[ERROR] Missing arguments for addtask.\n";
+            cerr << "        Usage: " << argv[0] << " <username> <password> addtask <name> <time> [priority] [category]\n";
+            cerr << "        Example: " << argv[0] << " test 123456 addtask Homework 2026-07-27_10:00 High Study\n";
+            cerr << "        Note: For names with spaces, use quotes: \"Movie Night\"\n";
             return 1;
         }
         string name = argv[4];
+        if (name.front() == '"') {
+            name = name.substr(1);
+            for (int i = 5; i < argc; ++i) {
+                string part = argv[i];
+                if (part.back() == '"') {
+                    name += " " + part.substr(0, part.size() - 1);
+                    break;
+                } else {
+                    name += " " + part;
+                }
+            }
+        }
         string timeStr = argv[5];
         string priority = (argc >= 7) ? argv[6] : "";
         string category = (argc >= 8) ? argv[7] : "";
@@ -320,7 +339,6 @@ int runSingleCommand(int argc, char* argv[]) {
         return doAddTask(manager, name, timeStr, priority, category) ? 0 : 1;
 
     } else if (command == "showtask") {
-        // myschedule user pass showtask <date>
         if (argc < 5) {
             cerr << "[ERROR] Usage: " << argv[0] << " <username> <password> showtask <date>\n";
             return 1;
@@ -341,25 +359,17 @@ int runSingleCommand(int argc, char* argv[]) {
             return 1;
         }
         int id = atoi(argv[4]);
-        if (manager.deleteTask(id)) {
-            cout << "Task deleted.\n";
-            return 0;
-        } else {
-            return 1;
-        }
+        return manager.deleteTask(id) ? 0 : 1;
 
     } else {
-        cerr << "[ERROR] Unknown command: " << command << "\n\n";
+        cerr << "[ERROR] Unknown command: \"" << command << "\"\n\n";
         printUsage(argv[0]);
         return 1;
     }
 }
 
-// ============ 程序入口 ============
-
 int main(int argc, char* argv[]) {
-    SetConsoleOutputCP(CP_UTF8);
-    SetConsoleCP(CP_UTF8);
+    setupConsole();
 
     if (argc < 2) {
         printUsage(argv[0]);
@@ -377,6 +387,5 @@ int main(int argc, char* argv[]) {
         return runInteractiveMode();
     }
 
-    // 否则按 "myschedule <user> <pass> <command> [args...]" 解析
     return runSingleCommand(argc, argv);
 }
