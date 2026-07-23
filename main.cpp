@@ -76,20 +76,66 @@ string getCurrentTimeStr() {
     return string(buf);
 }
 
-void showHelp() {
+// ============ 帮助信息 ============
+
+void printUsage(const char* progName) {
+    cout << "========================================\n";
+    cout << "        MySchedule - Task Manager\n";
+    cout << "========================================\n";
+    cout << "\nUSAGE:\n";
+    cout << "  " << progName << " run\n";
+    cout << "      Start interactive shell mode. Prompts for login/register,\n";
+    cout << "      then loops waiting for commands. Runs a background thread\n";
+    cout << "      that checks reminders every second.\n\n";
+
+    cout << "  " << progName << " <username> <password> register\n";
+    cout << "      Register a new account, then exit.\n\n";
+
+    cout << "  " << progName << " <username> <password> addtask <name> <time> [priority] [category]\n";
+    cout << "      Add a task, save to file, then exit.\n";
+    cout << "      <time>     format: YYYY-MM-DD_HH:MM\n";
+    cout << "      [priority] optional, one of High/Medium/Low, default: Medium\n";
+    cout << "      [category] optional, one of Study/Entertainment/Life, default: Life\n\n";
+
+    cout << "  " << progName << " <username> <password> showtask <date>\n";
+    cout << "      Show all tasks on a given date, sorted by start time.\n";
+    cout << "      <date> format: YYYY-MM-DD\n\n";
+
+    cout << "  " << progName << " <username> <password> showall\n";
+    cout << "      Show all tasks for this user.\n\n";
+
+    cout << "  " << progName << " <username> <password> deltask <id>\n";
+    cout << "      Delete a task by its id.\n\n";
+
+    cout << "  " << progName << " --help | -h\n";
+    cout << "      Show this help message.\n\n";
+
+    cout << "EXAMPLES:\n";
+    cout << "  " << progName << " run\n";
+    cout << "  " << progName << " user1 password123 register\n";
+    cout << "  " << progName << " user1 password123 addtask Homework 2026-07-27_10:00 High Study\n";
+    cout << "  " << progName << " user1 password123 addtask \"Do Homework\" 2026-07-27_10:00\n";
+    cout << "  " << progName << " user1 password123 showtask 2026-07-27\n";
+    cout << "  " << progName << " user1 password123 showall\n";
+    cout << "  " << progName << " user1 password123 deltask 1\n";
+}
+
+void showInteractiveHelp() {
     cout << "\nCommands:\n";
-    cout << "  addtask <name> <time> <priority> <category>\n";
-    cout << "  addtask \"<name with spaces>\" <time> <priority> <category>\n";
+    cout << "  addtask <name> <time> [priority] [category]\n";
+    cout << "  addtask \"<name with spaces>\" <time> [priority] [category]\n";
     cout << "  showtask <date>     e.g. showtask 2026-07-27\n";
     cout << "  showall\n";
     cout << "  deltask <id>        e.g. deltask 1\n";
     cout << "  quit\n";
     cout << "\nTime format: YYYY-MM-DD_HH:MM (use underscore, no spaces)\n";
+    cout << "[priority] optional, default: Medium. [category] optional, default: Life.\n";
     cout << "Example: addtask Homework 2026-07-27_10:00 High Study\n";
-    cout << "Example: addtask \"Do Homework\" 2026-07-27_10:00 High Study\n";
+    cout << "Example: addtask \"Do Homework\" 2026-07-27_10:00\n";
 }
 
-// 后台线程函数：每隔1秒检查一次是否有任务到了提醒时间
+// ============ 后台提醒线程 ============
+
 void reminderThreadFunc(TaskManager* manager) {
     while (g_running) {
         manager->checkReminders();
@@ -97,7 +143,33 @@ void reminderThreadFunc(TaskManager* manager) {
     }
 }
 
-int main() {
+// ============ addtask 公共逻辑（交互模式和命令行模式共用） ============
+
+bool doAddTask(TaskManager& manager, const string& name, const string& timeStr,
+               const string& priority, const string& category) {
+    if (name.empty() || timeStr.empty()) {
+        cout << "[ERROR] Task name and time are required.\n";
+        return false;
+    }
+    time_t startTime = parseTime(timeStr);
+    if (startTime == -1) return false;
+    time_t remindTime = startTime - 300; // 提前5分钟提醒
+
+    string finalPriority = priority.empty() ? "Medium" : priority;
+    string finalCategory = category.empty() ? "Life" : category;
+
+    if (manager.addTask(name, startTime, finalPriority, finalCategory, remindTime)) {
+        cout << "Task added successfully!\n";
+        return true;
+    } else {
+        cout << "Failed to add task.\n";
+        return false;
+    }
+}
+
+// ============ 交互模式（run） ============
+
+int runInteractiveMode() {
     SetConsoleOutputCP(CP_UTF8);
     SetConsoleCP(CP_UTF8);
 
@@ -140,9 +212,8 @@ int main() {
 
     TaskManager manager(username);
     cout << "Current time: " << getCurrentTimeStr() << "\n";
-    showHelp();
+    showInteractiveHelp();
 
-    // 启动后台提醒线程，独立于用户输入循环运行
     thread reminderThread(reminderThreadFunc, &manager);
 
     string line;
@@ -168,24 +239,9 @@ int main() {
                 ss >> name;
             }
 
-            ss >> timeStr >> priority >> category;
+            ss >> timeStr >> priority >> category; // priority/category可能读不到,是空字符串,doAddTask会用默认值
 
-            if (name.empty() || timeStr.empty() || priority.empty() || category.empty()) {
-                cout << "Usage: addtask <name> <time> <priority> <category>\n";
-                cout << "       or with quotes: addtask \"Do Homework\" 2026-07-27_10:00 High Study\n";
-                cout << "Example: addtask Homework 2026-07-27_10:00 High Study\n";
-                continue;
-            }
-
-            time_t startTime = parseTime(timeStr);
-            if (startTime == -1) continue;
-            time_t remindTime = startTime - 300;
-
-            if (manager.addTask(name, startTime, priority, category, remindTime)) {
-                cout << "Task added successfully!\n";
-            } else {
-                cout << "Failed to add task.\n";
-            }
+            doAddTask(manager, name, timeStr, priority, category);
         } else if (cmd == "showtask") {
             string dateStr;
             ss >> dateStr;
@@ -202,15 +258,125 @@ int main() {
                 cout << "Task deleted.\n";
             }
         } else if (cmd == "help") {
-            showHelp();
+            showInteractiveHelp();
         } else {
             cout << "Unknown command. Type 'help'.\n";
         }
     }
 
-    // 通知后台线程退出，并等待它结束，避免程序退出时线程还在跑导致崩溃
     g_running = false;
     reminderThread.join();
 
     return 0;
+}
+
+// ============ 命令行单命令模式 ============
+// myschedule <username> <password> <command> [args...]
+
+int runSingleCommand(int argc, char* argv[]) {
+    SetConsoleOutputCP(CP_UTF8);
+    SetConsoleCP(CP_UTF8);
+
+    if (argc < 4) {
+        cerr << "[ERROR] Missing arguments.\n\n";
+        printUsage(argv[0]);
+        return 1;
+    }
+
+    string username = argv[1];
+    string password = argv[2];
+    string command = argv[3];
+
+    if (command == "register") {
+        if (registerUser(username, password)) {
+            cout << "Registration successful!\n";
+            return 0;
+        } else {
+            cout << "Registration failed.\n";
+            return 1;
+        }
+    }
+
+    // 除register外，其它命令都需要先登录
+    if (!loginUser(username, password)) {
+        cout << "Login failed.\n";
+        return 1;
+    }
+
+    TaskManager manager(username);
+
+    if (command == "addtask") {
+        // myschedule user pass addtask <name> <time> [priority] [category]
+        if (argc < 6) {
+            cerr << "[ERROR] Usage: " << argv[0]
+                 << " <username> <password> addtask <name> <time> [priority] [category]\n";
+            return 1;
+        }
+        string name = argv[4];
+        string timeStr = argv[5];
+        string priority = (argc >= 7) ? argv[6] : "";
+        string category = (argc >= 8) ? argv[7] : "";
+
+        return doAddTask(manager, name, timeStr, priority, category) ? 0 : 1;
+
+    } else if (command == "showtask") {
+        // myschedule user pass showtask <date>
+        if (argc < 5) {
+            cerr << "[ERROR] Usage: " << argv[0] << " <username> <password> showtask <date>\n";
+            return 1;
+        }
+        string dateStr = argv[4];
+        time_t date = parseTime(dateStr + "_00:00");
+        if (date == -1) return 1;
+        manager.showTasksForDay(date);
+        return 0;
+
+    } else if (command == "showall") {
+        manager.showAllTasks();
+        return 0;
+
+    } else if (command == "deltask") {
+        if (argc < 5) {
+            cerr << "[ERROR] Usage: " << argv[0] << " <username> <password> deltask <id>\n";
+            return 1;
+        }
+        int id = atoi(argv[4]);
+        if (manager.deleteTask(id)) {
+            cout << "Task deleted.\n";
+            return 0;
+        } else {
+            return 1;
+        }
+
+    } else {
+        cerr << "[ERROR] Unknown command: " << command << "\n\n";
+        printUsage(argv[0]);
+        return 1;
+    }
+}
+
+// ============ 程序入口 ============
+
+int main(int argc, char* argv[]) {
+    SetConsoleOutputCP(CP_UTF8);
+    SetConsoleCP(CP_UTF8);
+
+    if (argc < 2) {
+        printUsage(argv[0]);
+        return 0;
+    }
+
+    string firstArg = argv[1];
+
+    if (firstArg == "--help" || firstArg == "-h") {
+        printUsage(argv[0]);
+        return 0;
+    }
+
+    if (firstArg == "run") {
+        return runInteractiveMode();
+    }
+
+    // 否则按 "myschedule <user> <pass> <command> [args...]" 解析
+    return runSingleCommand(argc, argv);
 }
