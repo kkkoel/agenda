@@ -6,17 +6,17 @@
 #include <string>
 #include <cstring>
 #include <cctype>
+#include <thread>
+#include <atomic>
+#include <chrono>
 #include <windows.h>
 
 using namespace std;
 
-// 归一化：把常见的全角符号转换成半角，防止中文输入法导致解析失败
+// 控制后台提醒线程的运行状态，主线程退出前会置为false并join
+atomic<bool> g_running(true);
+
 static void normalizePunctuation(string& s) {
-    // UTF-8 三字节全角符号 -> 半角ASCII
-    // － (U+FF0D) -> -
-    // ＿ (U+FF3F) -> _
-    // ： (U+FF1A) -> :
-    // 　(U+3000,全角空格) -> 普通空格
     struct Pair { const char* full; char half; };
     static const Pair table[] = {
         {"\xEF\xBC\x8D", '-'},
@@ -36,7 +36,6 @@ time_t parseTime(const string& rawTimeStr) {
     string timeStr = rawTimeStr;
     normalizePunctuation(timeStr);
 
-    // 去除首尾空白（防止多打了空格）
     while (!timeStr.empty() && isspace((unsigned char)timeStr.front())) timeStr.erase(0, 1);
     while (!timeStr.empty() && isspace((unsigned char)timeStr.back()))  timeStr.pop_back();
 
@@ -46,10 +45,6 @@ time_t parseTime(const string& rawTimeStr) {
     if (matched != 5) {
         cerr << "[ERROR] Invalid time format: \"" << timeStr << "\"\n";
         cerr << "       Use: YYYY-MM-DD_HH:MM (e.g. 2026-07-27_10:00)\n";
-        // 调试用：打印每个字符的字节值，方便确认是否混入了全角符号
-        cerr << "       [DEBUG] bytes: ";
-        for (unsigned char ch : timeStr) cerr << (int)ch << " ";
-        cerr << "\n";
         return -1;
     }
 
@@ -92,6 +87,14 @@ void showHelp() {
     cout << "\nTime format: YYYY-MM-DD_HH:MM (use underscore, no spaces)\n";
     cout << "Example: addtask Homework 2026-07-27_10:00 High Study\n";
     cout << "Example: addtask \"Do Homework\" 2026-07-27_10:00 High Study\n";
+}
+
+// 后台线程函数：每隔1秒检查一次是否有任务到了提醒时间
+void reminderThreadFunc(TaskManager* manager) {
+    while (g_running) {
+        manager->checkReminders();
+        this_thread::sleep_for(chrono::seconds(1));
+    }
 }
 
 int main() {
@@ -139,6 +142,9 @@ int main() {
     cout << "Current time: " << getCurrentTimeStr() << "\n";
     showHelp();
 
+    // 启动后台提醒线程，独立于用户输入循环运行
+    thread reminderThread(reminderThreadFunc, &manager);
+
     string line;
     cin.ignore();
 
@@ -154,12 +160,12 @@ int main() {
         if (cmd == "addtask") {
             string name, timeStr, priority, category;
 
-            ss >> ws; // 跳过前导空白
+            ss >> ws;
             if (ss.peek() == '"') {
-                ss.get(); // 吃掉开头的引号
-                getline(ss, name, '"'); // 读到下一个引号为止，支持带空格的任务名
+                ss.get();
+                getline(ss, name, '"');
             } else {
-                ss >> name; // 不带引号时，只能是单个单词
+                ss >> name;
             }
 
             ss >> timeStr >> priority >> category;
@@ -201,5 +207,10 @@ int main() {
             cout << "Unknown command. Type 'help'.\n";
         }
     }
+
+    // 通知后台线程退出，并等待它结束，避免程序退出时线程还在跑导致崩溃
+    g_running = false;
+    reminderThread.join();
+
     return 0;
 }

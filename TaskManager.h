@@ -4,45 +4,37 @@
 #include "Task.h"
 #include <vector>
 #include <string>
-#include <ctime> 
+#include <ctime>
+#include <mutex>
+#include <set>
 
 class TaskManager {
 public:
-    // 构造函数：传入当前登录的用户名
-    TaskManager(const std::string& username);
-    void showAllTasks() const;
-    // 添加任务，成功返回 true
-    bool addTask(const std::string& name, 
-                 std::time_t startTime, 
-                 const std::string& priority, 
-                 const std::string& category, 
-                 std::time_t remindTime);
+    explicit TaskManager(const std::string& username);
 
-    // 按 ID 删除任务
+    bool addTask(const std::string& name, time_t startTime, const std::string& priority, const std::string& category, time_t remindTime);
     bool deleteTask(int id);
-
-    // 显示某一天的所有任务（按时间排序）
-    void showTasksForDay(std::time_t date) const;
-
-    // 从文件加载任务
+    void showTasksForDay(time_t date) const;
+    void showAllTasks() const;
     bool loadFromFile();
-
-    // 保存任务到文件
     bool saveToFile() const;
 
+    // 供后台提醒线程周期性调用，内部自带加锁，线程安全
+    void checkReminders();
+
 private:
-    std::string m_username;          // 当前用户名
-    std::vector<Task> m_tasks;       // 任务列表
-    int m_nextId;                    // 下一个可用的 ID
+    std::string m_username;
+    std::vector<Task> m_tasks;
+    int m_nextId;
+    std::set<int> m_remindedIds;      // 已经提醒过的任务id，避免重复刷屏
+    mutable std::mutex m_mutex;       // 保护 m_tasks / m_nextId / m_remindedIds
 
-    // 生成唯一 ID
     int generateId();
-
-    // 检查任务名称 + 开始时间是否唯一
-    bool isUnique(const std::string& name, std::time_t startTime) const;
-
-    // 获取当前用户的任务文件名
+    bool isUnique(const std::string& name, time_t startTime) const; // 调用者必须已持有锁
     std::string getFilename() const;
+
+    // 内部不加锁版本，供已经持有锁的公开接口调用，避免重复加锁死锁
+    bool saveToFileUnlocked() const;
 };
 
 #endif

@@ -1,6 +1,8 @@
 #include "Task.h"
 
-std::string Task::priorityToString(Priority p) {
+using namespace std;
+
+string Task::priorityToString(Priority p) {
     switch (p) {
         case Priority::HIGH:   return "High";
         case Priority::MEDIUM: return "Medium";
@@ -9,7 +11,7 @@ std::string Task::priorityToString(Priority p) {
     }
 }
 
-std::string Task::categoryToString(Category c) {
+string Task::categoryToString(Category c) {
     switch (c) {
         case Category::STUDY:         return "Study";
         case Category::ENTERTAINMENT: return "Entertainment";
@@ -18,14 +20,14 @@ std::string Task::categoryToString(Category c) {
     }
 }
 
-Priority Task::stringToPriority(const std::string& s) {
+Priority Task::stringToPriority(const string& s) {
     if (s == "High" || s == "HIGH" || s == "high") return Priority::HIGH;
     if (s == "Medium" || s == "MEDIUM" || s == "medium") return Priority::MEDIUM;
     if (s == "Low" || s == "LOW" || s == "low") return Priority::LOW;
     return Priority::MEDIUM;
 }
 
-Category Task::stringToCategory(const std::string& s) {
+Category Task::stringToCategory(const string& s) {
     if (s == "Study" || s == "STUDY" || s == "study") return Category::STUDY;
     if (s == "Entertainment" || s == "ENTERTAINMENT" || s == "entertainment") return Category::ENTERTAINMENT;
     if (s == "Life" || s == "LIFE" || s == "life") return Category::LIFE;
