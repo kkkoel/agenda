@@ -5,10 +5,10 @@
 #include <algorithm>
 #include <iomanip>
 #include <ctime>
+#include <cstdlib>
 
 using namespace std;
 
-// ============ 列宽定义（统一控制所有表格对齐） ============
 static const int W_ID       = 5;
 static const int W_NAME     = 24;
 static const int W_START    = 18;
@@ -25,7 +25,6 @@ static string timeToStr(time_t t) {
     return string(buf);
 }
 
-// 超长字段截断，避免破坏表格对齐
 static string truncateField(const string& s, size_t width) {
     if (s.size() <= width) return s;
     if (width <= 2) return s.substr(0, width);
@@ -33,8 +32,18 @@ static string truncateField(const string& s, size_t width) {
 }
 
 static void printSeparatorLine() {
-    int total = W_ID + W_NAME + W_START + W_PRIORITY + W_CATEGORY + W_REMIND + 13; // 13 = 分隔符和空格
+    int total = W_ID + W_NAME + W_START + W_PRIORITY + W_CATEGORY + W_REMIND + 13;
     cout << "+" << string(total - 2, '-') << "+\n";
+}
+
+static void playReminderSound() {
+#ifdef _WIN32
+    system("start alert.wav");
+#elif __linux__
+    system("aplay alert.wav 2>/dev/null &");
+#elif __APPLE__
+    system("afplay alert.wav 2>/dev/null &");
+#endif
 }
 
 TaskManager::TaskManager(const string& username) : m_username(username), m_nextId(1) {
@@ -49,7 +58,6 @@ int TaskManager::generateId() {
     return m_nextId++;
 }
 
-// 注意：调用者必须已经持有 m_mutex，本函数内部不加锁
 bool TaskManager::isUnique(const string& name, time_t startTime) const {
     for (const auto& task : m_tasks) {
         if (task.name == name && task.startTime == startTime) {
@@ -77,7 +85,7 @@ bool TaskManager::addTask(const string& name, time_t startTime, const string& pr
     task.remindTime = remindTime;
 
     m_tasks.push_back(task);
-    saveToFileUnlocked(); // 已持有锁，调用不加锁版本，避免死锁
+    saveToFileUnlocked();
 
     cout << "\n[OK] Task #" << task.id << " \"" << task.name << "\" created.\n";
     cout << "     Starts: " << timeToStr(task.startTime)
@@ -98,15 +106,13 @@ bool TaskManager::deleteTask(int id) {
     }
     string name = it->name;
     m_tasks.erase(it);
-    m_remindedIds.erase(id); // 任务删了，对应的提醒记录也清掉
+    m_remindedIds.erase(id);
     saveToFileUnlocked();
 
     cout << "[OK] Task #" << id << " \"" << name << "\" deleted.\n";
     return true;
 }
 
-// 统一的表格打印函数，供 showAllTasks / showTasksForDay 共用
-// 调用者必须已经持有 m_mutex
 void TaskManager::printTaskTable(vector<Task> tasks, const string& title) const {
     if (tasks.empty()) {
         cout << "\n" << title << ": no tasks found.\n";
@@ -122,22 +128,22 @@ void TaskManager::printTaskTable(vector<Task> tasks, const string& title) const 
 
     printSeparatorLine();
     cout << "| " << left
-         << setw(W_ID)       << "ID"       << "| "
-         << setw(W_NAME)     << "Name"     << "| "
-         << setw(W_START)    << "Start"    << "| "
+         << setw(W_ID) << "ID" << "| "
+         << setw(W_NAME) << "Name" << "| "
+         << setw(W_START) << "Start" << "| "
          << setw(W_PRIORITY) << "Priority" << "| "
          << setw(W_CATEGORY) << "Category" << "| "
-         << setw(W_REMIND)   << "Reminder" << "|\n";
+         << setw(W_REMIND) << "Reminder" << "|\n";
     printSeparatorLine();
 
     for (const auto& task : tasks) {
         cout << "| " << left
-             << setw(W_ID)       << task.id << "| "
-             << setw(W_NAME)     << truncateField(task.name, W_NAME) << "| "
-             << setw(W_START)    << timeToStr(task.startTime) << "| "
+             << setw(W_ID) << task.id << "| "
+             << setw(W_NAME) << truncateField(task.name, W_NAME) << "| "
+             << setw(W_START) << timeToStr(task.startTime) << "| "
              << setw(W_PRIORITY) << Task::priorityToString(task.priority) << "| "
              << setw(W_CATEGORY) << Task::categoryToString(task.category) << "| "
-             << setw(W_REMIND)   << timeToStr(task.remindTime) << "|\n";
+             << setw(W_REMIND) << timeToStr(task.remindTime) << "|\n";
     }
     printSeparatorLine();
 }
@@ -211,7 +217,6 @@ bool TaskManager::saveToFile() const {
     return saveToFileUnlocked();
 }
 
-// 内部实现，不加锁，调用者必须已经持有 m_mutex
 bool TaskManager::saveToFileUnlocked() const {
     string filename = getFilename();
     ofstream fout(filename);
@@ -228,7 +233,6 @@ bool TaskManager::saveToFileUnlocked() const {
     return true;
 }
 
-// 由后台线程周期性调用：检查是否有任务到了提醒时间，打印提醒
 void TaskManager::checkReminders() {
     lock_guard<mutex> lock(m_mutex);
 
@@ -236,9 +240,11 @@ void TaskManager::checkReminders() {
     for (const auto& task : m_tasks) {
         bool alreadyReminded = (m_remindedIds.find(task.id) != m_remindedIds.end());
         bool timeReached = (task.remindTime > 0 && task.remindTime <= now);
-        bool notStartedYet = (task.startTime >= now); // 任务还没开始，提醒才有意义
+        bool notStartedYet = (task.startTime >= now);
 
         if (timeReached && notStartedYet && !alreadyReminded) {
+            playReminderSound();
+
             cout << "\n"
                  << "+--------------------------------------------------------+\n"
                  << "|  REMINDER                                              |\n"
