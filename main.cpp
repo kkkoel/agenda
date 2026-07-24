@@ -10,6 +10,10 @@
 #include <atomic>
 #include <chrono>
 #include <iomanip>
+#include <fstream>
+#include <cstdlib>
+#include <limits>
+#include <cstdio>
 
 #ifdef _WIN32
 #include <windows.h>
@@ -82,7 +86,7 @@ string getCurrentTimeStr() {
     time_t now = time(nullptr);
     tm* local = localtime(&now);
     char buf[64];
-    strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S", local);
+    strftime(buf, sizeof(buf), "%Y-%m-%d_%H:%M", local);
     return string(buf);
 }
 
@@ -141,6 +145,7 @@ static void showInteractiveHelp() {
     cout << "  " << left << setw(46) << "showtask <YYYY-MM-DD>" << "list tasks on a date\n";
     cout << "  " << left << setw(46) << "showall" << "list all your tasks\n";
     cout << "  " << left << setw(46) << "deltask <id>" << "delete a task by ID\n";
+    cout << "  " << left << setw(46) << "voice" << "add task by voice (Linux only)\n";
     cout << "  " << left << setw(46) << "help" << "show this help again\n";
     cout << "  " << left << setw(46) << "quit / exit" << "leave the program\n";
     cout << "\nNOTES\n";
@@ -162,11 +167,22 @@ void reminderThreadFunc(TaskManager* manager) {
 
 bool doAddTask(TaskManager& manager, const string& name, const string& timeStr,
                const string& priority, const string& category) {
-    if (name.empty() || timeStr.empty()) {
-        cerr << "[ERROR] Task name and start time are required.\n";
+    if (name.empty()) {
+        cerr << "[ERROR] Task name is required.\n";
         return false;
     }
-    time_t startTime = parseTime(timeStr);
+
+    string finalTimeStr = timeStr;
+    if (finalTimeStr.empty()) {
+        time_t now = time(nullptr);
+        time_t later = now + 3600;
+        tm* tmNow = localtime(&later);
+        char buf[64];
+        strftime(buf, sizeof(buf), "%Y-%m-%d_%H:%M", tmNow);
+        finalTimeStr = string(buf);
+    }
+
+    time_t startTime = parseTime(finalTimeStr);
     if (startTime == -1) return false;
     time_t remindTime = startTime - 300;
 
@@ -174,6 +190,107 @@ bool doAddTask(TaskManager& manager, const string& name, const string& timeStr,
     string finalCategory = category.empty() ? "Life" : category;
 
     return manager.addTask(name, startTime, finalPriority, finalCategory, remindTime);
+}
+
+void waitForEnter() {
+    // 清空 stdin 中所有残留字符（包括换行符）
+    int c;
+    while ((c = getchar()) != '\n' && c != EOF) {}
+    // 然后再等待一个新的 Enter
+    getchar();
+}
+
+bool recordAudio(const string& filename, int seconds) {
+    cout << "  Press Enter to start recording (" << seconds << " seconds)...\n";
+    waitForEnter();
+
+    cout << "  Recording... (" << seconds << " seconds)\n";
+    string cmd = "arecord -f cd -d " + to_string(seconds) + " -t wav " + filename + " 2>/dev/null";
+    system(cmd.c_str());
+
+    cout << "  Recording finished.\n";
+    return true;
+}
+
+string recognizeSpeech(const string& filename) {
+    string whisperCmd = "~/Desktop/whisper.cpp/build/bin/whisper-cli -f " + filename +
+                        " -m ~/Desktop/whisper.cpp/models/ggml-tiny.en.bin --no-timestamps 2>/dev/null > /tmp/voice.txt";
+    system(whisperCmd.c_str());
+
+    ifstream fin("/tmp/voice.txt");
+    string line, result;
+    while (getline(fin, line)) {
+        if (!line.empty()) {
+            result = line;
+            break;
+        }
+    }
+    fin.close();
+
+    while (!result.empty() && result.front() == ' ') result.erase(0, 1);
+    while (!result.empty() && result.back() == ' ') result.pop_back();
+
+    return result;
+}
+
+string parseDateFromText(const string& text) {
+    string digits;
+    for (char c : text) {
+        if (isdigit(c)) digits += c;
+    }
+
+    if (digits.length() == 8) {
+        int year = stoi(digits.substr(0, 4));
+        int month = stoi(digits.substr(4, 2));
+        int day = stoi(digits.substr(6, 2));
+        if (year >= 2024 && year <= 2030 && month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+            char buf[32];
+            snprintf(buf, sizeof(buf), "%04d-%02d-%02d", year, month, day);
+            return string(buf);
+        }
+    }
+
+    time_t now = time(nullptr);
+    tm* tmNow = localtime(&now);
+    char buf[32];
+    strftime(buf, sizeof(buf), "%Y-%m-%d", tmNow);
+    return string(buf);
+}
+
+string parseTimeFromText(const string& text) {
+    string digits;
+    for (char c : text) {
+        if (isdigit(c)) digits += c;
+    }
+
+    if (digits.length() >= 4) {
+        int hour = stoi(digits.substr(0, 2));
+        int min = stoi(digits.substr(2, 2));
+        if (hour >= 0 && hour <= 23 && min >= 0 && min <= 59) {
+            char buf[16];
+            snprintf(buf, sizeof(buf), "%02d:%02d", hour, min);
+            return string(buf);
+        }
+    }
+
+    return "09:00";
+}
+
+void parsePriorityAndCategory(const string& text, string& priority, string& category) {
+    string lower = text;
+    for (char& c : lower) c = tolower(c);
+
+    priority = "Medium";
+    category = "Life";
+
+    if (lower.find("high") != string::npos) priority = "High";
+    else if (lower.find("medium") != string::npos) priority = "Medium";
+    else if (lower.find("low") != string::npos) priority = "Low";
+
+    if (lower.find("study") != string::npos) category = "Study";
+    else if (lower.find("entertainment") != string::npos) category = "Entertainment";
+    else if (lower.find("life") != string::npos) category = "Life";
+    else if (lower.find("work") != string::npos) category = "Life";
 }
 
 int runInteractiveMode() {
@@ -267,6 +384,106 @@ int runInteractiveMode() {
                 continue;
             }
             manager.deleteTask(id);
+        } else if (cmd == "voice") {
+#ifdef __linux__
+            cout << "\n----------------------------------------------\n";
+            cout << "  VOICE TASK ENTRY\n";
+            cout << "----------------------------------------------\n";
+            cout << "  You will be guided step by step.\n";
+            cout << "----------------------------------------------\n\n";
+
+            string taskName, dateStr, timeStr, priority, category;
+            string recognized;
+
+            cout << "[1/4] Say the task name (e.g. write report) - 5 seconds\n";
+            if (!recordAudio("/tmp/voice.wav", 5)) continue;
+            recognized = recognizeSpeech("/tmp/voice.wav");
+            if (recognized.empty()) {
+                cout << "[FAILED] Recognition failed. Try again.\n";
+                continue;
+            }
+            taskName = recognized;
+            cout << "[OK] Recognized: \"" << taskName << "\"\n\n";
+
+            cout << "[2/4] Say 8 digits for date (e.g. 20260724) - 10 seconds\n";
+            cout << "      say: two zero two six zero seven two four\n";
+            if (!recordAudio("/tmp/voice.wav", 10)) continue;
+            recognized = recognizeSpeech("/tmp/voice.wav");
+            if (recognized.empty()) {
+                cout << "[FAILED] Recognition failed. Try again.\n";
+                continue;
+            }
+            dateStr = parseDateFromText(recognized);
+            cout << "[OK] Recognized: \"" << recognized << "\" -> " << dateStr << "\n\n";
+
+            cout << "[3/4] Say 4 digits for time (e.g. 1430) - 5 seconds\n";
+            cout << "      say: one four three zero\n";
+            if (!recordAudio("/tmp/voice.wav", 5)) continue;
+            recognized = recognizeSpeech("/tmp/voice.wav");
+            if (recognized.empty()) {
+                cout << "[FAILED] Recognition failed. Try again.\n";
+                continue;
+            }
+            timeStr = parseTimeFromText(recognized);
+            cout << "[OK] Recognized: \"" << recognized << "\" -> " << timeStr << "\n\n";
+
+            cout << "[4/4] Say priority and category: high study - 5 seconds\n";
+            cout << "      (priority: high / medium / low, category: study / entertainment / life)\n";
+            if (!recordAudio("/tmp/voice.wav", 5)) continue;
+            recognized = recognizeSpeech("/tmp/voice.wav");
+            if (recognized.empty()) {
+                cout << "[FAILED] Recognition failed. Try again.\n";
+                continue;
+            }
+            parsePriorityAndCategory(recognized, priority, category);
+            cout << "[OK] Recognized: \"" << recognized << "\" -> " << priority << " / " << category << "\n\n";
+
+            string fullTime = dateStr + "_" + timeStr;
+
+            cout << "----------------------------------------------\n";
+            cout << "  PARSED TASK\n";
+            cout << "----------------------------------------------\n";
+            cout << "  Name:     " << taskName << "\n";
+            cout << "  Time:     " << fullTime << "\n";
+            cout << "  Priority: " << priority << "\n";
+            cout << "  Category: " << category << "\n";
+            cout << "----------------------------------------------\n";
+
+            string confirm;
+            cout << "  Confirm? (y/n/edit): ";
+            getline(cin, confirm);
+
+            if (confirm == "n" || confirm == "N") {
+                cout << "[INFO] Task creation cancelled.\n";
+                continue;
+            } else if (confirm == "edit" || confirm == "e") {
+                cout << "  Edit name (current: " << taskName << "): ";
+                getline(cin, taskName);
+                if (taskName.empty()) taskName = "Untitled";
+
+                cout << "  Edit date (current: " << dateStr << "): ";
+                getline(cin, dateStr);
+                if (dateStr.empty()) dateStr = parseDateFromText("");
+
+                cout << "  Edit time (current: " << timeStr << "): ";
+                getline(cin, timeStr);
+                if (timeStr.empty()) timeStr = "09:00";
+
+                cout << "  Edit priority (current: " << priority << "): ";
+                getline(cin, priority);
+                if (priority.empty()) priority = "Medium";
+
+                cout << "  Edit category (current: " << category << "): ";
+                getline(cin, category);
+                if (category.empty()) category = "Life";
+
+                fullTime = dateStr + "_" + timeStr;
+            }
+
+            doAddTask(manager, taskName, fullTime, priority, category);
+#else
+            cout << "[ERROR] Voice command is only supported on Linux.\n";
+#endif
         } else if (cmd == "help") {
             showInteractiveHelp();
         } else {
