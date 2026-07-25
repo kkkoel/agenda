@@ -11,11 +11,26 @@
 
 #ifdef _WIN32
 #include <windows.h>
+#include <direct.h>   // _mkdir
+#else
+#include <sys/stat.h> // mkdir
 #endif
 
 using namespace std;
 
 atomic<bool> g_running(true);
+
+// 确保data/目录存在(用户数据、任务数据都存在这个目录下)。
+// 全新clone仓库或换一台机器运行时，这个目录不会自动存在，
+// 必须在程序启动时主动创建，否则第一次注册/建任务就会因为
+// 无法打开文件而失败。目录已存在时直接忽略返回值即可。
+static void ensureDataDirectory() {
+#ifdef _WIN32
+    _mkdir("data");
+#else
+    mkdir("data", 0755);
+#endif
+}
 
 void setupConsole() {
 #ifdef _WIN32
@@ -102,9 +117,9 @@ void printUsage(const char* progName) {
     cout << "  " << progName << " <username> <password> register\n";
     cout << "        Register a new account, then exit.\n\n";
 
-    cout << "  " << progName << " <username> <password> addtask <name> <time> [priority] [category]\n";
+    cout << "  " << progName << " <username> <password> addtask <n> <time> [priority] [category]\n";
     cout << "        Add one task, save it to file, then exit.\n";
-    cout << "          <name>     task name (use quotes if it has spaces)\n";
+    cout << "          <n>     task name (use quotes if it has spaces)\n";
     cout << "          <time>     format YYYY-MM-DD_HH:MM\n";
     cout << "          [priority] High | Medium | Low         (default: Medium)\n";
     cout << "          [category] Study | Entertainment | Life (default: Life)\n\n";
@@ -134,7 +149,7 @@ void printUsage(const char* progName) {
 
 void showInteractiveHelp() {
     cout << "\nCOMMANDS\n";
-    cout << "  " << left << setw(46) << "addtask <name> <time> [pri] [cat]" << "add a task\n";
+    cout << "  " << left << setw(46) << "addtask <n> <time> [pri] [cat]" << "add a task\n";
     cout << "  " << left << setw(46) << "addtask \"<name with spaces>\" <time> ..." << "(same, quoted name)\n";
     cout << "  " << left << setw(46) << "showtask <YYYY-MM-DD>" << "list tasks on a date\n";
     cout << "  " << left << setw(46) << "showall" << "list all your tasks\n";
@@ -181,6 +196,7 @@ bool doAddTask(TaskManager& manager, const string& name, const string& timeStr,
 
 int main(int argc, char* argv[]) {
     setupConsole();
+    ensureDataDirectory();
 
     if (argc < 2) {
         printUsage(argv[0]);
