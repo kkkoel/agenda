@@ -7,7 +7,7 @@
 
 using namespace std;
 
-const string USER_FILE = "users.txt";
+const string USER_FILE = "data/users.txt";
 
 static const unsigned int K[64] = {
     0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5,

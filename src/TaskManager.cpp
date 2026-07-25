@@ -1,11 +1,11 @@
 #include "TaskManager.h"
+#include "ReminderManager.h"
 #include <iostream>
 #include <fstream>
 #include <sstream>
 #include <algorithm>
 #include <iomanip>
 #include <ctime>
-#include <cstdlib>
 
 using namespace std;
 
@@ -36,22 +36,12 @@ static void printSeparatorLine() {
     cout << "+" << string(total - 2, '-') << "+\n";
 }
 
-static void playReminderSound() {
-#ifdef _WIN32
-    system("start alert.wav");
-#elif __linux__
-    system("aplay alert.wav 2>/dev/null &");
-#elif __APPLE__
-    system("afplay alert.wav 2>/dev/null &");
-#endif
-}
-
 TaskManager::TaskManager(const string& username) : m_username(username), m_nextId(1) {
     loadFromFile();
 }
 
 string TaskManager::getFilename() const {
-    return m_username + "_tasks.txt";
+    return "data/" + m_username + "_tasks.txt";
 }
 
 int TaskManager::generateId() {
@@ -128,22 +118,22 @@ void TaskManager::printTaskTable(vector<Task> tasks, const string& title) const 
 
     printSeparatorLine();
     cout << "| " << left
-         << setw(W_ID) << "ID" << "| "
-         << setw(W_NAME) << "Name" << "| "
-         << setw(W_START) << "Start" << "| "
+         << setw(W_ID)       << "ID"       << "| "
+         << setw(W_NAME)     << "Name"     << "| "
+         << setw(W_START)    << "Start"    << "| "
          << setw(W_PRIORITY) << "Priority" << "| "
          << setw(W_CATEGORY) << "Category" << "| "
-         << setw(W_REMIND) << "Reminder" << "|\n";
+         << setw(W_REMIND)   << "Reminder" << "|\n";
     printSeparatorLine();
 
     for (const auto& task : tasks) {
         cout << "| " << left
-             << setw(W_ID) << task.id << "| "
-             << setw(W_NAME) << truncateField(task.name, W_NAME) << "| "
-             << setw(W_START) << timeToStr(task.startTime) << "| "
+             << setw(W_ID)       << task.id << "| "
+             << setw(W_NAME)     << truncateField(task.name, W_NAME) << "| "
+             << setw(W_START)    << timeToStr(task.startTime) << "| "
              << setw(W_PRIORITY) << Task::priorityToString(task.priority) << "| "
              << setw(W_CATEGORY) << Task::categoryToString(task.category) << "| "
-             << setw(W_REMIND) << timeToStr(task.remindTime) << "|\n";
+             << setw(W_REMIND)   << timeToStr(task.remindTime) << "|\n";
     }
     printSeparatorLine();
 }
