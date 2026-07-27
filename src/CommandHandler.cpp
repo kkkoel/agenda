@@ -118,14 +118,9 @@ int runInteractiveMode() {
                 continue;
             }
             manager.deleteTask(id);
-       } else if (cmd == "voice") {
+        } else if (cmd == "voice") {
 #ifdef __linux__
-    if (!voiceDependenciesReady()) {
-        cout << "[ERROR] Voice input is not available until the above are fixed.\n";
-        continue;
-    }
-
-    cout << "\n----------------------------------------------\n";
+            cout << "\n----------------------------------------------\n";
             cout << "  VOICE TASK ENTRY\n";
             cout << "----------------------------------------------\n";
             cout << "  You will be guided step by step.\n";

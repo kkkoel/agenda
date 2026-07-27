@@ -9,13 +9,10 @@ using namespace std;
 
 void playReminderSound() {
 #ifdef _WIN32
-    int result = system("start alert.wav");
+    system("start alert.wav");
 #elif __linux__
-    int result = system("aplay alert.wav 2>/dev/null &");
-#else
-    int result = 0;
+    system("aplay alert.wav 2>/dev/null &");
 #endif
-    (void)result; // 播放提示音失败不影响主流程，故意忽略返回值
 }
 
 void reminderThreadFunc(TaskManager* manager) {
