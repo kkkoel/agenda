@@ -1,0 +1,22 @@
+#include <QApplication>
+#include <QProcessEnvironment>
+#include <QLocale>
+#include <QTranslator>
+
+int main(int argc, char *argv[])
+{
+    // 强制使用 ibus 输入法
+    qputenv("QT_IM_MODULE", "ibus");
+    qputenv("GTK_IM_MODULE", "ibus");
+    qputenv("XMODIFIERS", "@im=ibus");
+
+    QApplication app(argc, argv);
+
+    // 加载 Qt 翻译文件（支持中文界面）
+    QTranslator translator;
+    if (translator.load(QLocale::system(), "qt", "_", "/usr/share/qt6/translations")) {
+        app.installTranslator(&translator);
+    }
+
+    // ... 你的主窗口代码
+}

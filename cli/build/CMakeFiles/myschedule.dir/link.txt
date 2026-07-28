@@ -1,0 +1,1 @@
+/usr/bin/c++ CMakeFiles/myschedule.dir/src/main.cpp.o CMakeFiles/myschedule.dir/src/account_system.cpp.o CMakeFiles/myschedule.dir/src/Task.cpp.o CMakeFiles/myschedule.dir/src/TaskManager.cpp.o CMakeFiles/myschedule.dir/src/ReminderManager.cpp.o CMakeFiles/myschedule.dir/src/VoiceManager.cpp.o CMakeFiles/myschedule.dir/src/CommandHandler.cpp.o -o myschedule-1.0.0  -lpthread 

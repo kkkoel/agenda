@@ -1,0 +1,7 @@
+/home/code/Desktop/MySchedule/cli/build/CMakeFiles/myschedule.dir
+/home/code/Desktop/MySchedule/cli/build/CMakeFiles/edit_cache.dir
+/home/code/Desktop/MySchedule/cli/build/CMakeFiles/rebuild_cache.dir
+/home/code/Desktop/MySchedule/cli/build/CMakeFiles/list_install_components.dir
+/home/code/Desktop/MySchedule/cli/build/CMakeFiles/install.dir
+/home/code/Desktop/MySchedule/cli/build/CMakeFiles/install/local.dir
+/home/code/Desktop/MySchedule/cli/build/CMakeFiles/install/strip.dir
