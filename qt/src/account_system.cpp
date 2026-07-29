@@ -14,10 +14,7 @@ using namespace std;
 
 const string USER_FILE = "/home/code/Desktop/MySchedule/data/users.txt";
 
-// ============================================================
-// SHA256 完整实现（纯 C++，无外部依赖）
-// ============================================================
-
+// SHA256
 static const unsigned int K[64] = {
     0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5,
     0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,

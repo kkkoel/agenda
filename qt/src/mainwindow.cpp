@@ -769,10 +769,10 @@ void MainWindow::onVoiceInputClicked()
     btnLayout->addWidget(cancelButton);
     layout->addLayout(btnLayout);
 
-    // 取消按钮关闭对话框
+    //取消按钮关闭对话框
     connect(cancelButton, &QPushButton::clicked, dialog, &QDialog::reject);
 
-    // ★★★ 用 QTimer 更新倒计时 ★★★
+    //用QTimer更新倒计时
     QTimer *timer = new QTimer(dialog);
     int seconds = 5;
     timer->start(1000);
@@ -792,11 +792,11 @@ void MainWindow::onVoiceInputClicked()
         }
     });
 
-    // 用线程执行录音，不阻塞界面
+    //用线程执行录音，不阻塞界面
     std::thread([=]() {
         system("arecord -d 5 -r 16000 -c 1 -f S16_LE -t wav /tmp/voice_input.wav 2>/dev/null");
 
-        // 识别
+        //识别
         QProcess process;
         process.start("python3", {"/home/code/Desktop/MySchedule/qt/voice_rec.py"});
         if (process.waitForFinished(10000)) {
@@ -830,7 +830,7 @@ void MainWindow::onVoiceInputClicked()
     }).detach();
 }
 
-// ========== 辅助函数 ==========
+//辅助函数
 
 void MainWindow::updateLoginStatus()
 {

@@ -7,7 +7,7 @@
 #include <ctime>
 #include <mutex>
 #include <set>
-#include <functional>   // ← 新增
+#include <functional>
 
 class TaskManager {
 public:
@@ -25,7 +25,7 @@ public:
 
     void checkReminders();
 
-    // ★★★ 新增：设置提醒回调函数 ★★★
+    //设置提醒回调函数
     void setReminderCallback(std::function<void(const Task&)> callback);
 
 private:
@@ -40,7 +40,7 @@ private:
     std::string getFilename() const;
     bool saveToFileUnlocked() const;
 
-    // ★★★ 新增：回调函数 ★★★
+    //回调函数
     std::function<void(const Task&)> m_reminderCallback;
 };
 
