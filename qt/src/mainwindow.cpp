@@ -915,3 +915,4 @@ void MainWindow::updateTaskTable(const std::vector<Task>& tasks)
         m_taskTableWidget->setItem(i, 5, new QTableWidgetItem(QString::fromStdString(timeToStr(task.remindTime))));
     }
 }
+

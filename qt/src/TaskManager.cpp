@@ -5,7 +5,7 @@
 #include <algorithm>
 #include <iomanip>
 #include <ctime>
-#include <QDebug>
+
 
 using namespace std;
 
@@ -211,25 +211,27 @@ bool TaskManager::saveToFileUnlocked() const {
 }
 
 void TaskManager::checkReminders() {
-    lock_guard<mutex> lock(m_mutex);
-
     time_t now = time(nullptr);
-    for (const auto& task : m_tasks) {
+    
+    vector<Task> tasks_copy;
+    {
+        lock_guard<mutex> lock(m_mutex);
+        tasks_copy = m_tasks;
+    }
+    
+    for (const auto& task : tasks_copy) {
         bool alreadyReminded = (m_remindedIds.find(task.id) != m_remindedIds.end());
         bool timeReached = (task.remindTime > 0 && task.remindTime <= now);
         bool notStartedYet = (task.startTime >= now);
-
+        
         if (timeReached && notStartedYet && !alreadyReminded) {
-            qDebug().noquote() << QString("[REMINDER] Task \"%1\" starts at %2 (Priority: %3)")
-            .arg(QString::fromStdString(task.name))
-                .arg(QString::fromStdString(timeToStr(task.startTime)))
-                .arg(QString::fromStdString(Task::priorityToString(task.priority)));
-
             if (m_reminderCallback) {
                 m_reminderCallback(task);
             }
-
-            m_remindedIds.insert(task.id);
+            {
+                lock_guard<mutex> lock(m_mutex);
+                m_remindedIds.insert(task.id);
+            }
         }
     }
 }
@@ -266,3 +268,4 @@ std::vector<Task> TaskManager::getAllTasks() const {
 void TaskManager::setReminderCallback(std::function<void(const Task&)> callback) {
     m_reminderCallback = callback;
 }
+
