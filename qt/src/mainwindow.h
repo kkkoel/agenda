@@ -46,7 +46,6 @@ private slots:
     void onRefreshClicked();
     void onShowAllClicked();
     void onDateChanged(const QDate &date);
-    void onReminderTimer();
     void onShowMonthClicked();
     void onCalendarClicked(const QDate &date);
     void onVoiceInputClicked();

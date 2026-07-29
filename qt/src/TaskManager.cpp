@@ -211,27 +211,21 @@ bool TaskManager::saveToFileUnlocked() const {
 }
 
 void TaskManager::checkReminders() {
-    time_t now = time(nullptr);
-    
-    vector<Task> tasks_copy;
-    {
-        lock_guard<mutex> lock(m_mutex);
-        tasks_copy = m_tasks;
-    }
-    
-    for (const auto& task : tasks_copy) {
+    lock_guard<mutex> lock(m_mutex);
+
+    time_t now = time(nullptr); //获取当前时间
+    time_t checkTime = now + 9; //覆盖系统延迟 提前九秒检查
+    for (const auto& task : m_tasks) { //遍历所有任务
         bool alreadyReminded = (m_remindedIds.find(task.id) != m_remindedIds.end());
-        bool timeReached = (task.remindTime > 0 && task.remindTime <= now);
-        bool notStartedYet = (task.startTime >= now);
-        
+        bool timeReached = (task.remindTime > 0 && task.remindTime <= checkTime);
+        bool notStartedYet = (task.startTime >= checkTime);
+
         if (timeReached && notStartedYet && !alreadyReminded) {
             if (m_reminderCallback) {
                 m_reminderCallback(task);
             }
-            {
-                lock_guard<mutex> lock(m_mutex);
-                m_remindedIds.insert(task.id);
-            }
+
+            m_remindedIds.insert(task.id);
         }
     }
 }
@@ -268,4 +262,3 @@ std::vector<Task> TaskManager::getAllTasks() const {
 void TaskManager::setReminderCallback(std::function<void(const Task&)> callback) {
     m_reminderCallback = callback;
 }
-

@@ -27,7 +27,7 @@ MainWindow::MainWindow(QWidget *parent)
     setCentralWidget(central);
     QVBoxLayout *mainLayout = new QVBoxLayout(central);
 
-    // ========== 登录区域 ==========
+    //登录区域
     QGroupBox *loginBox = new QGroupBox("账户管理");
     QHBoxLayout *loginLayout = new QHBoxLayout;
 
@@ -61,7 +61,7 @@ MainWindow::MainWindow(QWidget *parent)
     loginBox->setLayout(loginLayout);
     mainLayout->addWidget(loginBox);
 
-    // ========== 任务输入区域（语音按钮在任务名称后面） ==========
+    //任务输入区域
     QGroupBox *taskBox = new QGroupBox("添加任务");
     QHBoxLayout *taskLayout = new QHBoxLayout;
 
@@ -70,7 +70,7 @@ MainWindow::MainWindow(QWidget *parent)
     m_taskNameEdit->setMinimumWidth(120);
     taskLayout->addWidget(m_taskNameEdit);
 
-    // ★★★ 语音按钮 ★★★
+    //语音按钮
     m_voiceButton = new QPushButton("🎤");
     m_voiceButton->setFixedSize(32, 28);
     m_voiceButton->setStyleSheet("background-color: #9C27B0; color: white; border-radius: 5px; font-size: 14px;");
@@ -114,7 +114,7 @@ MainWindow::MainWindow(QWidget *parent)
     taskBox->setLayout(taskLayout);
     mainLayout->addWidget(taskBox);
 
-    // ========== 按月查看 ==========
+    //按月查看
     QGroupBox *monthBox = new QGroupBox("按月查看");
     QHBoxLayout *monthLayout = new QHBoxLayout;
 
@@ -141,15 +141,11 @@ MainWindow::MainWindow(QWidget *parent)
     monthLayout->addWidget(m_showMonthButton);
     connect(m_showMonthButton, &QPushButton::clicked, this, &MainWindow::onShowMonthClicked);
 
-    m_taskCountLabel = new QLabel("任务数：0");
-    m_taskCountLabel->setStyleSheet("color: #9C27B0; font-weight: bold;");
-    monthLayout->addWidget(m_taskCountLabel);
-
     monthLayout->addStretch();
     monthBox->setLayout(monthLayout);
     mainLayout->addWidget(monthBox);
 
-    // ========== 日历视图 ==========
+    //日历视图
     QGroupBox *calendarBox = new QGroupBox("日历");
     QVBoxLayout *calendarLayout = new QVBoxLayout;
     m_calendarWidget = new QCalendarWidget;
@@ -159,7 +155,7 @@ MainWindow::MainWindow(QWidget *parent)
     calendarBox->setLayout(calendarLayout);
     mainLayout->addWidget(calendarBox);
 
-    // ========== 任务列表 ==========
+    //任务列表
     QGroupBox *listBox = new QGroupBox("任务列表");
     QVBoxLayout *listLayout = new QVBoxLayout;
 
@@ -196,7 +192,7 @@ MainWindow::MainWindow(QWidget *parent)
     listBox->setLayout(listLayout);
     mainLayout->addWidget(listBox);
 
-    // ========== 音频 ==========
+    //音频
     m_mediaPlayer = new QMediaPlayer(this);
     m_audioOutput = new QAudioOutput(this);
     m_mediaPlayer->setAudioOutput(m_audioOutput);
@@ -217,9 +213,7 @@ MainWindow::MainWindow(QWidget *parent)
     setWindowTitle("MySchedule - 智能日程管理");
     toggleControls(false);
 
-    m_timer = new QTimer(this);
-    connect(m_timer, &QTimer::timeout, this, &MainWindow::onReminderTimer);
-    m_timer->start(100);
+   
 }
 
 MainWindow::~MainWindow()
@@ -237,7 +231,7 @@ MainWindow::~MainWindow()
     }
 }
 
-// ========== 按月查看功能 ==========
+//按月查看功能
 
 QString MainWindow::getMonthName(int month) const
 {
@@ -314,7 +308,7 @@ void MainWindow::onShowMonthClicked()
     titleLabel->setStyleSheet("font-size: 13px; font-weight: bold; padding: 5px;");
     layout->addWidget(titleLabel);
 
-    // ★★★ 表格居中 ★★★
+    //表格居中
     QTableWidget *table = new QTableWidget(dialog);
     table->setColumnCount(5);
     table->setHorizontalHeaderLabels(QStringList() << "ID" << "任务名称" << "开始时间" << "优先级" << "分类");
@@ -323,7 +317,7 @@ void MainWindow::onShowMonthClicked()
     table->setEditTriggers(QAbstractItemView::NoEditTriggers);
     table->horizontalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
 
-    // 表格字体调小
+    //表格字体
     table->setFont(QFont("Arial", 9));
 
     for (size_t i = 0; i < monthTasks.size(); ++i) {
@@ -335,7 +329,7 @@ void MainWindow::onShowMonthClicked()
         table->setItem(i, 4, new QTableWidgetItem(QString::fromStdString(Task::categoryToString(task.category))));
     }
 
-    // ★★★ 表格居中 ★★★
+    //表格居中
     table->horizontalHeader()->setMinimumSectionSize(40);
     layout->addWidget(table);
 
@@ -353,7 +347,7 @@ void MainWindow::onShowMonthClicked()
     delete dialog;
 }
 
-// ========== 日历功能 ==========
+//日历功能
 
 void MainWindow::updateCalendar()
 {
@@ -378,7 +372,7 @@ void MainWindow::onCalendarClicked(const QDate &date)
     loadTasksForToday();
 }
 
-// ========== 音频功能 ==========
+//音频功能
 
 void MainWindow::playReminderSound()
 {
@@ -394,7 +388,7 @@ void MainWindow::stopReminderSound()
     }
 }
 
-// ========== 提醒弹窗 ==========
+//提醒弹窗
 
 void MainWindow::showReminderPopup(const Task& task)
 {
@@ -451,7 +445,7 @@ void MainWindow::showReminderPopup(const Task& task)
                               .arg(QString::fromStdString(timeToStr(task.startTime)));
 }
 
-// ========== 账户管理 ==========
+//账户管理
 
 void MainWindow::onLoginClicked()
 {
@@ -527,7 +521,7 @@ void MainWindow::onLogoutClicked()
     showMessage("提示", "已安全退出登录。");
 }
 
-// ========== 任务管理 ==========
+//任务管理
 
 void MainWindow::onAddTaskClicked()
 {
@@ -602,7 +596,7 @@ void MainWindow::onDeleteTaskClicked()
     }
 }
 
-// ========== 修改任务功能 ==========
+//修改任务
 
 void MainWindow::onEditTaskClicked()
 {
@@ -723,25 +717,21 @@ void MainWindow::onDateChanged(const QDate &date)
     if (m_isLoggedIn) loadTasksForToday();
 }
 
-void MainWindow::onReminderTimer()
-{
-    if (m_taskManager) {
-        m_taskManager->checkReminders();
-    }
-}
-
 void MainWindow::reminderThreadFunc()
 {
     while (m_running) {
+        if (m_taskManager) {
+            m_taskManager->checkReminders(); 
+        }
         std::this_thread::sleep_for(std::chrono::seconds(1));
     }
 }
 
-// ========== 语音识别（带进度弹窗） ==========
+//语音识别
 
 void MainWindow::onVoiceInputClicked()
 {
-    // 创建进度对话框
+    //创建进度对话框
     QDialog *dialog = new QDialog(this);
     dialog->setWindowTitle("语音识别");
     dialog->setModal(false);
